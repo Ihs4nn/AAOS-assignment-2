@@ -2,6 +2,8 @@ import hashlib
 import threading
 import os
 import time
+import pwd
+import csv
 
 # Scanning directory tree to find filename, size, mtime, owner and hash
 def initial_scan(directory):
@@ -42,13 +44,53 @@ def file_sizes(files):
 
 # Getting file mtimes
 def file_mtimes(files):
-    pass
+    print(f"\nGetting file modification times for each file in {directory}")
+    start_time = time.time()
+    mtimes = []
+    for file in files:
+        try:
+            mtimes.append((file, os.path.getmtime(file)))
+        except Exception as e:
+            print(f"Error getting mtime for {file}: {e}")
+    end_time = time.time()
+    print(f"Got mtimes for {len(mtimes)} files in {end_time - start_time:.2f} seconds")
+    return mtimes
 
+# Getting file owner names
 def file_owners(files):
-    pass
+    print(f"\nGetting file owners for each file in {directory}")
+    start_time = time.time()
+    owners = []
+    for file in files:
+        try:
+            stat_info = os.stat(file)
+            owner_name = pwd.getpwuid(stat_info.st_uid).pw_name
+            owners.append((file, owner_name))
+        except (OSError, KeyError) as e:
+            print(f"Error getting owner for {file}: {e}")
+            owners.append((file, "unknown"))
+    end_time = time.time()
+    print(f"Got owners for {len(owners)} files in {end_time - start_time:.2f} seconds")
+    return owners
 
+# Getting file hashes
 def file_hash(files, algorithm='sha256'):
-    pass
+    print(f"\nCalculating {algorithm} hashes for each file in {directory}")
+    start_time = time.time()
+    hashes = []
+    for file in files:
+        try:
+            hash_obj = hashlib.new(algorithm)
+            with open(file, 'rb') as f:
+                while chunk := f.read(8192):
+                    hash_obj.update(chunk)
+            hashes.append((file, hash_obj.hexdigest()))
+        except Exception as e:
+            print(f"Error hashing {file}: {e}")
+            hashes.append((file, None))
+    end_time = time.time()
+    print(f"Calculated hashes for {len(hashes)} files in {end_time - start_time:.2f} seconds")
+    return hashes
 
 # Adding simple CLI queries
 
@@ -65,11 +107,49 @@ if __name__ == "__main__":
     
     # Printing to terminal
     files = initial_scan(directory)
+    names = file_names(files)
+    print("Sample of file names found:")
+    for name in names[:5]:
+        print(f"  {name}")
     sizes = file_sizes(files)
     print("Sample of file sizes found:")
     for file, size in sizes[:5]:
         print(f"  {file}: {size} bytes")
-    names = file_names(files)
-    print("Sample of file names found:")
-    for name in names[:10]:
-        print(f"  {name}")
+    mtimes = file_mtimes(files)
+    print("Sample of file modification times found:")
+    for file, mtime in mtimes[:5]:
+        print(f"  {file}: {time.ctime(mtime)}")
+    owners = file_owners(files)
+    print("Sample of file owners found:")
+    for file, owner in owners[:5]:
+        print(f"  Owner: {owner} for {file}")
+    
+    hashes = file_hash(files, 'sha256')
+    print("Sample of file hashes found:")
+    for file, h in hashes[:5]:
+        print(f"  {file}: {h}")
+    
+    # Combine into list of dicts
+    index = []
+    for i in range(len(files)):
+        index.append({
+            'filename': files[i],
+            'size': sizes[i][1] if i < len(sizes) and sizes[i][0] == files[i] else None,
+            'mtime': mtimes[i][1] if i < len(mtimes) and mtimes[i][0] == files[i] else None,
+            'owner': owners[i][1] if i < len(owners) and owners[i][0] == files[i] else None,
+            'hash': hashes[i][1] if i < len(hashes) and hashes[i][0] == files[i] else None
+        })
+    
+    # Write to CSV
+    csv_file = 'file_index.csv'
+    with open(csv_file, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['filename', 'size', 'mtime', 'owner', 'hash'])
+        writer.writeheader()
+        writer.writerows(index)
+    print(f"\nSaved index to {csv_file} with {len(index)} entries")
+    hashes = file_hash(files, algorithm='sha256')
+    print("Sample of file hashes found:")
+    for file, hash_value in hashes[:5]:
+        print(f"  {file}: {hash_value}")
+
+    
