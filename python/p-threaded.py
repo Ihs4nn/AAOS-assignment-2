@@ -94,6 +94,7 @@ def file_hash(files, algorithm='sha256'):
 
 # Writing infomation to CSV file
 def write_to_csv(files, sizes, mtimes, owners, hashes):
+    print("\nWriting all files infomation to CSV file")
     index = []
     for i in range(len(files)):
         index.append({
@@ -109,18 +110,30 @@ def write_to_csv(files, sizes, mtimes, owners, hashes):
         writer = csv.DictWriter(f, fieldnames=['filename', 'size', 'mtime', 'owner', 'hash'])
         writer.writeheader()
         writer.writerows(index)
-    print(f"Saved index to {csv_file} with {len(index)} entries")
+    print(f"Saved file index infomation to {csv_file} with {len(index)} entries")
+    return csv_file
+
+def get_csv_file(csv_file):
+    index = []
+    with open(csv_file, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            index.append({
+                'filename': row['filename'],
+                'size': int(row['size']) if row['size'] else None,
+                'mtime': float(row['mtime']) if row['mtime'] else None,
+                'owner': row['owner'],
+                'hash': row['hash'] 
+            })
+    return index
 
 # Adding simple CLI queries
-def query_large_files():
+def query_large_files(index, mb_size):
     pass
 
-def query_checksum_files():
+def query_checksum_files(index, checksum_name):
     pass
 
-# Adding hash algorithm selection
-def change_hash_algorithm():
-    pass
 
 # Main script
 if __name__ == "__main__":
@@ -154,7 +167,23 @@ if __name__ == "__main__":
     mtimes = file_mtimes(files)
     owners = file_owners(files)
     hashes = file_hash(files, algorithm = hash_algorithm)
-    print("Writing all files infomation to CSV file")
-    write_to_csv(files, sizes, mtimes, owners, hashes)
+    csv_file = write_to_csv(files, sizes, mtimes, owners, hashes)
 
-    
+    index = get_csv_file(csv_file)
+
+    # Query menu to users
+    while True:
+        print("\nQuery Menu:")
+        print("1. List files larger than x MB")
+        print("2. Find files with a specific checksum")
+        print("3. Exit")
+        query_choice = input("Enter choice (1-3): ").strip()
+
+        if query_choice == '1':
+            mb_size = input("Enter size in MB: ").strip()
+            query_large_files(index, mb_size)
+        elif query_choice == '2':
+            checksum_name = input("Enter file to check: ").strip()
+            query_checksum_files(index, checksum_name)
+        else:
+            break
