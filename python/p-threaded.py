@@ -129,11 +129,17 @@ def get_csv_file(csv_file):
 
 # Adding simple CLI queries
 def query_large_files(index, mb_size):
-    pass
+    try:
+        mb = float(mb_size)
+        bytes_size = mb * 1024 * 1024
+        matched_files = [f for f in index if f['size'] and f['size'] > bytes_size]
+        for file in matched_files[:5]:
+            print(f"File: {file['filename']}, Size: {file['size'] / (1024 * 1024):.1f} MB")
+    except ValueError:
+        print("Invalid size input")
 
 def query_checksum_files(index, checksum_name):
     pass
-
 
 # Main script
 if __name__ == "__main__":
@@ -168,16 +174,15 @@ if __name__ == "__main__":
     owners = file_owners(files)
     hashes = file_hash(files, algorithm = hash_algorithm)
     csv_file = write_to_csv(files, sizes, mtimes, owners, hashes)
-
     index = get_csv_file(csv_file)
 
     # Query menu to users
     while True:
         print("\nQuery Menu:")
-        print("1. List files larger than x MB")
-        print("2. Find files with a specific checksum")
+        print("1. Find all files larger than x MB")
+        print("2. Find the hash value of a specific file")
         print("3. Exit")
-        query_choice = input("Enter choice (1-3): ").strip()
+        query_choice = input("Enter 1, 2 or 3: ").strip()
 
         if query_choice == '1':
             mb_size = input("Enter size in MB: ").strip()
