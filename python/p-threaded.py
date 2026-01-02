@@ -94,7 +94,6 @@ def file_hash(files, algorithm='sha256'):
 
 # Writing infomation to CSV file
 def write_to_csv(files, sizes, mtimes, owners, hashes):
-    print(f"Writing file index to CSV")
     index = []
     for i in range(len(files)):
         index.append({
@@ -113,12 +112,36 @@ def write_to_csv(files, sizes, mtimes, owners, hashes):
     print(f"Saved index to {csv_file} with {len(index)} entries")
 
 # Adding simple CLI queries
+def query_large_files():
+    pass
+
+def query_checksum_files():
+    pass
 
 # Adding hash algorithm selection
+def change_hash_algorithm():
+    pass
 
-
+# Main script
 if __name__ == "__main__":
-    directory = input("Enter directory to scan: ").strip()
+    # Get choice of hash algorithm
+    print("\nSelect hash algorithm:")
+    print("1. sha-256 (default algorithm)")
+    print("2. sha-1")
+    print("3. md5")
+    choice = input("Enter choice (1-3): ").strip()
+
+    if choice == '1':
+        hash_algorithm = 'sha256'
+    elif choice == '2':
+        hash_algorithm = 'sha1'
+    else:
+        hash_algorithm = 'md5'
+
+    print(f"\nUsing {hash_algorithm} as hash algorithm")
+
+    # Get directory from user
+    directory = input("\nEnter directory to scan: ").strip()
     if not directory:
         print("No directory provided")
         exit(1)
@@ -130,7 +153,7 @@ if __name__ == "__main__":
     sizes = file_sizes(files)
     mtimes = file_mtimes(files)
     owners = file_owners(files)
-    hashes = file_hash(files, algorithm='sha256')
+    hashes = file_hash(files, algorithm = hash_algorithm)
     print("Writing all files infomation to CSV file")
     write_to_csv(files, sizes, mtimes, owners, hashes)
 
