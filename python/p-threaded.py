@@ -8,58 +8,67 @@ import csv
 # Scanning directory tree to find filename, size, mtime, owner and hash
 def initial_scan(directory):
     print(f"\nScanning {directory} for files")
-    start_time = time.time()
+    wall_start = time.time()
+    cpu_start = time.process_time()
 
     files = []
     for dirpath, dirnames, filenames in os.walk(directory):
         for filename in filenames:
             files.append(os.path.join(dirpath, filename))
     
-    end_time = time.time()
-    print(f"Found {len(files)} files in {end_time - start_time:.2f} seconds")
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    print(f"Found {len(files)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return files
 
 # Getting file names
 def file_names(files):
     print(f"\nGetting file names for each file in {directory}")
-    start_time = time.time()
+    wall_start = time.time()
+    cpu_start = time.process_time()
     names = [os.path.basename(file) for file in files]
-    end_time = time.time()
-    print(f"Got names for {len(names)} files in {end_time - start_time:.2f} seconds")
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    print(f"Got names for {len(names)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return names
 
 # Getting file sizes
 def file_sizes(files):
     print(f"\nGetting file sizes for each file in {directory}")
-    start_time = time.time()
+    wall_start = time.time()
+    cpu_start = time.process_time()
     sizes = []
     for file in files:
         try:
             sizes.append((file, os.path.getsize(file)))
         except Exception as e:
             print(f"Error getting size for {file}: {e}")
-    end_time = time.time()
-    print(f"Got sizes for {len(sizes)} files in {end_time - start_time:.2f} seconds")
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    print(f"Got sizes for {len(sizes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return sizes
 
 # Getting file mtimes
 def file_mtimes(files):
     print(f"\nGetting file modification times for each file in {directory}")
-    start_time = time.time()
+    wall_start = time.time()
+    cpu_start = time.process_time()
     mtimes = []
     for file in files:
         try:
             mtimes.append((file, os.path.getmtime(file)))
         except Exception as e:
             print(f"Error getting mtime for {file}: {e}")
-    end_time = time.time()
-    print(f"Got mtimes for {len(mtimes)} files in {end_time - start_time:.2f} seconds")
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    print(f"Got mtimes for {len(mtimes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return mtimes
 
 # Getting file owner names
 def file_owners(files):
     print(f"\nGetting file owners for each file in {directory}")
-    start_time = time.time()
+    wall_start = time.time()
+    cpu_start = time.process_time()
     owners = []
     for file in files:
         try:
@@ -69,14 +78,16 @@ def file_owners(files):
         except (OSError, KeyError) as e:
             print(f"Error getting owner for {file}: {e}")
             owners.append((file, "unknown"))
-    end_time = time.time()
-    print(f"Got owners for {len(owners)} files in {end_time - start_time:.2f} seconds")
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    print(f"Got owners for {len(owners)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return owners
 
 # Getting file hashes
 def file_hash(files, algorithm='sha256'):
     print(f"\nCalculating {algorithm} hashes for each file in {directory}")
-    start_time = time.time()
+    wall_start = time.time()
+    cpu_start = time.process_time()
     hashes = []
     for file in files:
         try:
@@ -88,8 +99,9 @@ def file_hash(files, algorithm='sha256'):
         except Exception as e:
             print(f"Error hashing {file}: {e}")
             hashes.append((file, None))
-    end_time = time.time()
-    print(f"Calculated hashes for {len(hashes)} files in {end_time - start_time:.2f} seconds")
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    print(f"Calculated hashes for {len(hashes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return hashes
 
 # Writing infomation to CSV file
@@ -133,13 +145,31 @@ def query_large_files(index, mb_size):
         mb = float(mb_size)
         bytes_size = mb * 1024 * 1024
         matched_files = [f for f in index if f['size'] and f['size'] > bytes_size]
-        for file in matched_files[:5]:
-            print(f"File: {file['filename']}, Size: {file['size'] / (1024 * 1024):.1f} MB")
+        
+        total_matches = len(matched_files)
+        print(f"\nFound {total_matches} files larger than {mb:.1f} MB")
+        if total_matches == 0:
+            return
+        batch_size = 10
+        for i in range(0, total_matches, batch_size):
+            batch = matched_files[i : i + batch_size]
+            print(f"\nDisplaying files {i + 1} to {min(i + batch_size, total_matches)} of {total_matches}")
+            for file in batch:
+                print(f"File: {file['filename']}, Size: {file['size'] / (1024 * 1024):.2f} MB")
+            if i + batch_size < total_matches:
+                user_input = input("\nType 'n' to see the next set of results or 'e' to exit:")
+                if user_input.lower() == 'e':
+                    break
+        print("End of results")
     except ValueError:
         print("Invalid size input")
 
 def query_checksum_files(index, checksum_name):
-    pass
+    for f in index:
+        if os.path.basename(f['filename']) == checksum_name:
+            print(f"Checksum for {checksum_name}: {f['hash']}")
+            return
+    print("File not found.")
 
 # Main script
 if __name__ == "__main__":
@@ -157,8 +187,6 @@ if __name__ == "__main__":
     else:
         hash_algorithm = 'md5'
 
-    print(f"\nUsing {hash_algorithm} as hash algorithm")
-
     # Get directory from user
     directory = input("\nEnter directory to scan: ").strip()
     if not directory:
@@ -166,6 +194,11 @@ if __name__ == "__main__":
         exit(1)
     if not os.path.isabs(directory):
         directory = os.path.expanduser('~/' + directory)
+
+    # Start processing with benchmarks
+    print(f"Starting indexing processing using {hash_algorithm} algorithm on directory: {directory}")
+    wall_start = time.time()
+    cpu_start = time.process_time()
     
     files = initial_scan(directory)
     names = file_names(files)
@@ -174,6 +207,13 @@ if __name__ == "__main__":
     owners = file_owners(files)
     hashes = file_hash(files, algorithm = hash_algorithm)
     csv_file = write_to_csv(files, sizes, mtimes, owners, hashes)
+
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    print("\nBenchmark results for Single Threaded Processing:")
+    print(f"Total time taken: {wall_end - wall_start:.2f}")
+    print(f"Total CPU time (Processor time used): {cpu_end - cpu_start:.2f}")
+
     index = get_csv_file(csv_file)
 
     # Query menu to users
