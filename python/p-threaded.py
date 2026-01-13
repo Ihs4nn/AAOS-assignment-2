@@ -1,5 +1,4 @@
 import hashlib
-import threading
 import os
 import time
 import pwd
@@ -8,7 +7,7 @@ import resource
 
 # Scanning directory tree to find filename, size, mtime, owner and hash
 def initial_scan(directory):
-    # print(f"\nScanning {directory} for files")
+    print(f"\nScanning {directory} for files")
     wall_start = time.time()
     cpu_start = time.process_time()
 
@@ -19,39 +18,48 @@ def initial_scan(directory):
     
     wall_end = time.time()
     cpu_end = time.process_time()
-    # print(f"Found {len(files)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    print(f"Found {len(files)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return files
 
 # Getting file names
 def file_names(files):
-    # print(f"\nGetting file names for each file in {directory}")
+    print(f"\nGetting file names for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
     names = [os.path.basename(file) for file in files]
     wall_end = time.time()
     cpu_end = time.process_time()
-    # print(f"Got names for {len(names)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    print(f"Got names for {len(names)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return names
 
 # Getting file sizes
 def file_sizes(files):
-    # print(f"\nGetting file sizes for each file in {directory}")
+    print(f"\nGetting file sizes for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
-    sizes = []
-    for file in files:
+
+    def get_size(file):
         try:
-            sizes.append((file, os.path.getsize(file)))
+            return (file, os.path.getsize(file))
         except Exception as e:
-            print(f"Error getting size for {file}: {e}")
+            # print(f"Error getting size for {file}: {e}")
+            return (file, None)
+
+    sizes = []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    with ThreadPoolExecutor() as executor:
+        future_to_file = {executor.submit(get_size, file): file for file in files}
+        for future in as_completed(future_to_file):
+            sizes.append(future.result())
+
     wall_end = time.time()
     cpu_end = time.process_time()
-    # print(f"Got sizes for {len(sizes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    print(f"Got sizes for {len(sizes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return sizes
 
 # Getting file mtimes
 def file_mtimes(files):
-    # print(f"\nGetting file modification times for each file in {directory}")
+    print(f"\nGetting file modification times for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
     mtimes = []
@@ -62,12 +70,12 @@ def file_mtimes(files):
             print(f"Error getting mtime for {file}: {e}")
     wall_end = time.time()
     cpu_end = time.process_time()
-    # print(f"Got mtimes for {len(mtimes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    print(f"Got mtimes for {len(mtimes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return mtimes
 
 # Getting file owner names
 def file_owners(files):
-    # print(f"\nGetting file owners for each file in {directory}")
+    print(f"\nGetting file owners for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
     owners = []
@@ -81,12 +89,12 @@ def file_owners(files):
             owners.append((file, "unknown"))
     wall_end = time.time()
     cpu_end = time.process_time()
-    # print(f"Got owners for {len(owners)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    print(f"Got owners for {len(owners)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return owners
 
 # Getting file hashes
 def file_hash(files, algorithm='sha256'):
-    # print(f"\nCalculating {algorithm} hashes for each file in {directory}")
+    print(f"\nCalculating {algorithm} hashes for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
     hashes = []
@@ -102,12 +110,12 @@ def file_hash(files, algorithm='sha256'):
             hashes.append((file, None))
     wall_end = time.time()
     cpu_end = time.process_time()
-    # print(f"Calculated hashes for {len(hashes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    print(f"Calculated hashes for {len(hashes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
     return hashes
 
 # Writing infomation to CSV file
 def write_to_csv(files, sizes, mtimes, owners, hashes):
-    # print("\nWriting all files infomation to CSV file")
+    print("\nWriting all files infomation to CSV file")
     index = []
     for i in range(len(files)):
         index.append({
@@ -123,7 +131,7 @@ def write_to_csv(files, sizes, mtimes, owners, hashes):
         writer = csv.DictWriter(f, fieldnames=['filename', 'size', 'mtime', 'owner', 'hash'])
         writer.writeheader()
         writer.writerows(index)
-    # print(f"Saved file index infomation to {csv_file} with {len(index)} entries")
+    print(f"Saved file index infomation to {csv_file} with {len(index)} entries")
     return csv_file
 
 def get_csv_file(csv_file):
