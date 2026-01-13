@@ -26,7 +26,16 @@ def file_names(files):
     print(f"\nGetting file names for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
-    names = [os.path.basename(file) for file in files]
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    def get_name(file):
+        return os.path.basename(file)
+    names = []
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_file = {executor.submit(get_name, file): file for file in files}
+        for future in as_completed(future_to_file):
+            names.append(future.result())
+
     wall_end = time.time()
     cpu_end = time.process_time()
     print(f"Got names for {len(names)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
@@ -37,21 +46,20 @@ def file_sizes(files):
     print(f"\nGetting file sizes for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
-
     def get_size(file):
         try:
             return (file, os.path.getsize(file))
         except Exception as e:
-            # print(f"Error getting size for {file}: {e}")
             return (file, None)
-
     sizes = []
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    with ThreadPoolExecutor() as executor:
+    # Create a threadpool with 3 threads
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        # Submit each file to the thread pool for processing
         future_to_file = {executor.submit(get_size, file): file for file in files}
+        # Collect results as they finish
         for future in as_completed(future_to_file):
             sizes.append(future.result())
-
     wall_end = time.time()
     cpu_end = time.process_time()
     print(f"Got sizes for {len(sizes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
@@ -62,12 +70,19 @@ def file_mtimes(files):
     print(f"\nGetting file modification times for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
-    mtimes = []
-    for file in files:
+    # Submitting all files to thread pool
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    def get_mtime(file):
         try:
-            mtimes.append((file, os.path.getmtime(file)))
+            return (file, os.path.getmtime(file))
         except Exception as e:
-            print(f"Error getting mtime for {file}: {e}")
+            return (file, None)
+    mtimes = []
+    # Collecting results as they complete
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_file = {executor.submit(get_mtime, file): file for file in files}
+        for future in as_completed(future_to_file):
+            mtimes.append(future.result())
     wall_end = time.time()
     cpu_end = time.process_time()
     print(f"Got mtimes for {len(mtimes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
@@ -78,15 +93,21 @@ def file_owners(files):
     print(f"\nGetting file owners for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
-    owners = []
-    for file in files:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    def get_owner(file):
         try:
             stat_info = os.stat(file)
             owner_name = pwd.getpwuid(stat_info.st_uid).pw_name
-            owners.append((file, owner_name))
+            return (file, owner_name)
         except (OSError, KeyError) as e:
-            print(f"Error getting owner for {file}: {e}")
-            owners.append((file, "unknown"))
+            return (file, "unknown")
+    owners = []
+    # Create 3 threads to process files at the same time
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_file = {executor.submit(get_owner, file): file for file in files}
+        # As each thread finishes, add its result to owners list
+        for future in as_completed(future_to_file):
+            owners.append(future.result())
     wall_end = time.time()
     cpu_end = time.process_time()
     print(f"Got owners for {len(owners)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
@@ -97,17 +118,26 @@ def file_hash(files, algorithm='sha256'):
     print(f"\nCalculating {algorithm} hashes for each file in {directory}")
     wall_start = time.time()
     cpu_start = time.process_time()
-    hashes = []
-    for file in files:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    def hash_file(file):
         try:
             hash_obj = hashlib.new(algorithm)
             with open(file, 'rb') as f:
-                while chunk := f.read(8192):
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
                     hash_obj.update(chunk)
-            hashes.append((file, hash_obj.hexdigest()))
+            return (file, hash_obj.hexdigest())
         except Exception as e:
-            print(f"Error hashing {file}: {e}")
-            hashes.append((file, None))
+            return (file, None)
+    hashes = []
+    # Use 3 threads to calculate hashes in parallel
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_file = {executor.submit(hash_file, file): file for file in files}
+        # As each thread completes, collect its hash result in the list
+        for future in as_completed(future_to_file):
+            hashes.append(future.result())
     wall_end = time.time()
     cpu_end = time.process_time()
     print(f"Calculated hashes for {len(hashes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
@@ -212,12 +242,19 @@ if __name__ == "__main__":
         files = initial_scan(directory)
         names = file_names(files)
         sizes = file_sizes(files)
+        # New sort lines to match original file order because of threading
+        sizes.sort(key=lambda x: files.index(x[0]))
         mtimes = file_mtimes(files)
+        mtimes.sort(key=lambda x: files.index(x[0]))
         owners = file_owners(files)
+        owners.sort(key=lambda x: files.index(x[0]))
         hashes = file_hash(files, algorithm = hash_algorithm)
+        hashes.sort(key=lambda x: files.index(x[0]))
         csv_file = write_to_csv(files, sizes, mtimes, owners, hashes)
         wall_end = time.time()
         cpu_end = time.process_time()
+        
+        # AI Aided with peak memory usage calculation
         usage = resource.getrusage(resource.RUSAGE_SELF)
         peak_mem_mb = usage.ru_maxrss / (1024 * 1024) if os.uname().sysname == 'Darwin' else usage.ru_maxrss / 1024
     
