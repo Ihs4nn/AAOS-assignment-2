@@ -1,0 +1,238 @@
+import hashlib
+import os
+import time
+import pwd
+import csv
+import resource
+import multiprocessing
+
+# For multiprocessing, functions must be at the top level
+def get_name(file):
+    return os.path.basename(file)
+
+def get_size(file):
+    try:
+        return (file, os.path.getsize(file))
+    except Exception as e:
+        return (file, None)
+
+def get_mtime(file):
+    try:
+        return (file, os.path.getmtime(file))
+    except Exception as e:
+        return (file, None)
+
+def get_owner(file):
+    try:
+        stat_info = os.stat(file)
+        owner_name = pwd.getpwuid(stat_info.st_uid).pw_name
+        return (file, owner_name)
+    except (OSError, KeyError) as e:
+        return (file, "unknown")
+
+def hash_file(args):
+    file, algorithm = args
+    try:
+        hash_obj = hashlib.new(algorithm)
+        with open(file, 'rb') as f:
+            while True:
+                chunk = f.read(8192)
+                if not chunk:
+                    break
+                hash_obj.update(chunk)
+        return (file, hash_obj.hexdigest())
+    except Exception as e:
+        return (file, None)
+
+# Scanning directory tree to find filename, size, mtime, owner and hash
+def initial_scan(directory):
+    # print(f"\nScanning {directory} for files")
+    wall_start = time.time()
+    cpu_start = time.process_time()
+
+    files = []
+    for dirpath, dirnames, filenames in os.walk(directory):
+        for filename in filenames:
+            files.append(os.path.join(dirpath, filename))
+    
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    # print(f"Found {len(files)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    return files
+
+# Getting file names
+def file_names(files):
+    # print(f"\nGetting file names for each file in {directory}")
+    wall_start = time.time()
+    cpu_start = time.process_time()
+
+    with multiprocessing.Pool(processes=3) as pool:
+        names = pool.map(get_name, files)
+
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    # print(f"Got names for {len(names)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    return names
+
+# Getting file sizes
+def file_sizes(files):
+    # print(f"\nGetting file sizes for each file in {directory}")
+    wall_start = time.time()
+    cpu_start = time.process_time()
+    with multiprocessing.Pool(processes=3) as pool:
+        sizes = pool.map(get_size, files)
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    # print(f"Got sizes for {len(sizes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    return sizes
+
+# Getting file mtimes
+def file_mtimes(files):
+    # print(f"\nGetting file modification times for each file in {directory}")
+    wall_start = time.time()
+    cpu_start = time.process_time()
+    with multiprocessing.Pool(processes=3) as pool:
+        mtimes = pool.map(get_mtime, files)
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    # print(f"Got mtimes for {len(mtimes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    return mtimes
+
+# Getting file owner names
+def file_owners(files):
+    # print(f"\nGetting file owners for each file in {directory}")
+    wall_start = time.time()
+    cpu_start = time.process_time()
+    with multiprocessing.Pool(processes=3) as pool:
+        owners = pool.map(get_owner, files)
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    # print(f"Got owners for {len(owners)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    return owners
+
+# Getting file hashes
+def file_hash(files, algorithm='sha256'):
+    # print(f"\nCalculating {algorithm} hashes for each file in {directory}")
+    wall_start = time.time()
+    cpu_start = time.process_time()
+    # Use starmap to pass algorithm to each worker
+    with multiprocessing.Pool(processes=3) as pool:
+        hashes = pool.map(hash_file, [(file, algorithm) for file in files])
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    # print(f"Calculated hashes for {len(hashes)} files in {wall_end - wall_start:.2f} real seconds and {cpu_end - cpu_start:.2f} CPU seconds")
+    return hashes
+
+# Writing infomation to CSV file
+def write_to_csv(files, sizes, mtimes, owners, hashes):
+    # print("\nWriting all files infomation to CSV file")
+    index = []
+    for i in range(len(files)):
+        index.append({
+            'filename': files[i],
+            'size': sizes[i][1] if i < len(sizes) and sizes[i][0] == files[i] else None,
+            'mtime': mtimes[i][1] if i < len(mtimes) and mtimes[i][0] == files[i] else None,
+            'owner': owners[i][1] if i < len(owners) and owners[i][0] == files[i] else None,
+            'hash': hashes[i][1] if i < len(hashes) and hashes[i][0] == files[i] else None
+        })
+    # Write to CSV
+    csv_file = '../results/p-multiprocess-file-index.csv'
+    with open(csv_file, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['filename', 'size', 'mtime', 'owner', 'hash'])
+        writer.writeheader()
+        writer.writerows(index)
+    # print(f"Saved file index infomation to {csv_file} with {len(index)} entries")
+    return csv_file
+
+def get_csv_file(csv_file):
+    index = []
+    with open(csv_file, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            index.append({
+                'filename': row['filename'],
+                'size': int(row['size']) if row['size'] else None,
+                'mtime': float(row['mtime']) if row['mtime'] else None,
+                'owner': row['owner'],
+                'hash': row['hash'] 
+            })
+    return index
+
+# Adding simple CLI queries
+def query_large_files(index, mb_size):
+    try:
+        mb = float(mb_size)
+        bytes_size = mb * 1024 * 1024
+        matched_files = [f for f in index if f['size'] and f['size'] > bytes_size]
+        
+        total_matches = len(matched_files)
+        print(f"\nFound {total_matches} files larger than {mb:.1f} MB")
+        if total_matches == 0:
+            return
+        batch_size = 10
+        for i in range(0, total_matches, batch_size):
+            batch = matched_files[i : i + batch_size]
+            print(f"\nDisplaying files {i + 1} to {min(i + batch_size, total_matches)} of {total_matches}")
+            for file in batch:
+                print(f"File: {file['filename']}, Size: {file['size'] / (1024 * 1024):.2f} MB")
+            if i + batch_size < total_matches:
+                user_input = input("\nType 'n' to see the next set of results or 'e' to exit:")
+                if user_input.lower() == 'e':
+                    break
+        print("End of results")
+    except ValueError:
+        print("Invalid size input")
+
+def query_checksum_files(index, checksum_name):
+    for f in index:
+        if os.path.basename(f['filename']) == checksum_name:
+            print(f"Checksum for {checksum_name}: {f['hash']}")
+            return
+    print("File not found.")
+
+
+# Main script
+if __name__ == "__main__":
+    import csv
+    # Default values for benchmarking
+    hash_algorithm = 'sha256'
+    directory = os.path.expanduser('~/Documents/AssignmentsUni')
+
+    # Prepare CSV for benchmark results
+    benchmark_file = '../results/p-multiprocess-benchmarks.csv'
+    with open(benchmark_file, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['run', 'wall_time_s', 'cpu_time_s', 'peak_memory_mb'])
+        writer.writeheader()
+        run = 1
+        while run <= 30:
+            wall_start = time.time()
+            cpu_start = time.process_time()
+
+            files = initial_scan(directory)
+            names = file_names(files)
+            sizes = file_sizes(files)
+            sizes.sort(key=lambda x: files.index(x[0]))
+            mtimes = file_mtimes(files)
+            mtimes.sort(key=lambda x: files.index(x[0]))
+            owners = file_owners(files)
+            owners.sort(key=lambda x: files.index(x[0]))
+            hashes = file_hash(files, algorithm = hash_algorithm)
+            hashes.sort(key=lambda x: files.index(x[0]))
+            csv_file = write_to_csv(files, sizes, mtimes, owners, hashes)
+            wall_end = time.time()
+            cpu_end = time.process_time()
+
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            peak_mem_mb = usage.ru_maxrss / (1024 * 1024) if os.uname().sysname == 'Darwin' else usage.ru_maxrss / 1024
+
+            # Write benchmark result
+            writer.writerow({
+                'run': run,
+                'wall_time_s': f"{wall_end - wall_start:.2f}",
+                'cpu_time_s': f"{cpu_end - cpu_start:.2f}",
+                'peak_memory_mb': f"{peak_mem_mb:.2f}"
+            })
+            print(f"Run {run} of 30: wall_time={wall_end - wall_start:.2f}s, cpu_time={cpu_end - cpu_start:.2f}s, peak_mem={peak_mem_mb:.2f}MB")
+            run += 1
+    print(f"Benchmarking complete. Results saved to {benchmark_file}")
+
