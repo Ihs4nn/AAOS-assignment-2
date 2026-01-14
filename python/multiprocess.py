@@ -191,48 +191,70 @@ def query_checksum_files(index, checksum_name):
     print("File not found.")
 
 
+
 # Main script
 if __name__ == "__main__":
-    import csv
-    # Default values for benchmarking
-    hash_algorithm = 'sha256'
-    directory = os.path.expanduser('~/Documents/AssignmentsUni')
+    # Get choice of hash algorithm
+    print("\nSelect hash algorithm:")
+    print("1. sha-256 (default algorithm)")
+    print("2. sha-1")
+    print("3. md5")
+    choice = input("Enter choice (1-3): ").strip()
+    if choice == '1':
+        hash_algorithm = 'sha256'
+    elif choice == '2':
+        hash_algorithm = 'sha1'
+    else:
+        hash_algorithm = 'md5'
+    # Get directory from user
+    directory = input("\nEnter directory to scan: ").strip()
+    if not directory:
+        print("No directory provided")
+        exit(1)
+    if not os.path.isabs(directory):
+        directory = os.path.expanduser('~/' + directory)
 
-    # Prepare CSV for benchmark results
-    benchmark_file = '../results/p-multiprocess-benchmarks.csv'
-    with open(benchmark_file, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['run', 'wall_time_s', 'cpu_time_s', 'peak_memory_mb'])
-        writer.writeheader()
-        run = 1
-        while run <= 30:
-            wall_start = time.time()
-            cpu_start = time.process_time()
+    print(f"Starting indexing processing using {hash_algorithm} algorithm on directory: {directory}")
+    wall_start = time.time()
+    cpu_start = time.process_time()
 
-            files = initial_scan(directory)
-            names = file_names(files)
-            sizes = file_sizes(files)
-            sizes.sort(key=lambda x: files.index(x[0]))
-            mtimes = file_mtimes(files)
-            mtimes.sort(key=lambda x: files.index(x[0]))
-            owners = file_owners(files)
-            owners.sort(key=lambda x: files.index(x[0]))
-            hashes = file_hash(files, algorithm = hash_algorithm)
-            hashes.sort(key=lambda x: files.index(x[0]))
-            csv_file = write_to_csv(files, sizes, mtimes, owners, hashes)
-            wall_end = time.time()
-            cpu_end = time.process_time()
+    files = initial_scan(directory)
+    names = file_names(files)
+    sizes = file_sizes(files)
+    sizes.sort(key=lambda x: files.index(x[0]))
+    mtimes = file_mtimes(files)
+    mtimes.sort(key=lambda x: files.index(x[0]))
+    owners = file_owners(files)
+    owners.sort(key=lambda x: files.index(x[0]))
+    hashes = file_hash(files, algorithm = hash_algorithm)
+    hashes.sort(key=lambda x: files.index(x[0]))
+    csv_file = write_to_csv(files, sizes, mtimes, owners, hashes)
+    wall_end = time.time()
+    cpu_end = time.process_time()
+    
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    peak_mem_mb = usage.ru_maxrss / (1024 * 1024) if os.uname().sysname == 'Darwin' else usage.ru_maxrss / 1024
 
-            usage = resource.getrusage(resource.RUSAGE_SELF)
-            peak_mem_mb = usage.ru_maxrss / (1024 * 1024) if os.uname().sysname == 'Darwin' else usage.ru_maxrss / 1024
+    print("\nBenchmark results:")
+    print(f"Total time taken: {wall_end - wall_start:.2f}")
+    print(f"Total CPU time (Processor time used): {cpu_end - cpu_start:.2f}")
+    print(f"Peak memory usage: {peak_mem_mb:.2f} MB")
 
-            # Write benchmark result
-            writer.writerow({
-                'run': run,
-                'wall_time_s': f"{wall_end - wall_start:.2f}",
-                'cpu_time_s': f"{cpu_end - cpu_start:.2f}",
-                'peak_memory_mb': f"{peak_mem_mb:.2f}"
-            })
-            print(f"Run {run} of 30: wall_time={wall_end - wall_start:.2f}s, cpu_time={cpu_end - cpu_start:.2f}s, peak_mem={peak_mem_mb:.2f}MB")
-            run += 1
-    print(f"Benchmarking complete. Results saved to {benchmark_file}")
+    index = get_csv_file(csv_file)
+    # Query menu to users
+    while True:
+        print("\nQuery Menu:")
+        print("1. Find all files larger than x MB")
+        print("2. Find the hash value of a specific file")
+        print("3. Exit")
+        query_choice = input("Enter 1, 2 or 3: ").strip()
+
+        if query_choice == '1':
+            mb_size = input("Enter size in MB: ").strip()
+            query_large_files(index, mb_size)
+        elif query_choice == '2':
+            checksum_name = input("Enter file to check: ").strip()
+            query_checksum_files(index, checksum_name)
+        else:
+            break
 

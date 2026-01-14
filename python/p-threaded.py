@@ -258,7 +258,7 @@ if __name__ == "__main__":
     # End of AI aid
 
     # Display benchmark results
-    print("\nBenchmark results for Threaded Processing:")
+    print("\nBenchmark results:")
     print(f"Total time taken: {wall_end - wall_start:.2f}")
     print(f"Total CPU time (Processor time used): {cpu_end - cpu_start:.2f}")
     print(f"Peak memory usage: {peak_mem_mb:.2f} MB")
