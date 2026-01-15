@@ -10,24 +10,6 @@
 
 namespace fs = std::filesystem;
 
-// -----------------------------
-// Job model (students may extend)
-// -----------------------------
-struct Job {
-    fs::path path;
-
-    // "arrival time" in ticks (simple counter in this simulation)
-    int arrival = 0;
-
-    // estimated cost (used for SJF/MLFQ ideas)
-    int est_cost = 1;
-
-    // for RR/MLFQ: remaining "work units" (simple abstraction)
-    int remaining = 1;
-
-    // for MLQ/MLFQ: which queue the job is in
-    int queue_level = 0;
-};
 
 // -----------------------------
 // Small helpers
@@ -142,128 +124,13 @@ static std::string scanOnePathJson(const fs::path& p) {
     return json;
 }
 
-// -----------------------------
-// Job creation (workload)
-// -----------------------------
-static std::vector<Job> buildJobs(const fs::path& root) {
-    std::vector<Job> jobs;
-    int tick = 0;
 
-    for (auto const& entry : fs::recursive_directory_iterator(root)) {
-        if (!entry.is_regular_file()) continue; // keep it simple: index files only
 
-        ++tick;
-        fs::path p = entry.path();
-
-        // Simple estimate: size buckets -> est_cost (1,2,3)
-        unsigned long long size_bytes = 0;
-        try {
-            size_bytes = entry.file_size();
-        } catch (...) {
-            size_bytes = 0;
-        }
-
-        int est = 1;
-        if (size_bytes >= 100000ULL && size_bytes < 10000000ULL) est = 2;   // 100KB..10MB
-        else if (size_bytes >= 10000000ULL) est = 3;                        // >=10MB
-
-        Job j;
-        j.path = p;
-        j.arrival = tick;
-        j.est_cost = est;
-        j.remaining = est;     // “work units” tied to cost
-        j.queue_level = 0;     // starts high for MLFQ ideas
-        jobs.push_back(j);
-    }
-
-    // Arrival order
-    std::sort(jobs.begin(), jobs.end(), [](const Job& a, const Job& b) {
-        return a.arrival < b.arrival;
-    });
-
-    return jobs;
-}
 
 // -----------------------------
-// Scheduler hooks (students adapt)
+// Indexing loop (no scheduler)
 // -----------------------------
-static std::optional<Job> chooseNextJob(std::deque<Job>& ready, int /*tick*/) {
-    /*
-      STUDENT TASK: Replace this logic to implement a scheduler.
-
-      Current behaviour: FCFS (pop from front)
-
-      Ideas:
-      - FCFS:         pop_front
-      - SJF:          choose job with smallest est_cost (remove it)
-      - Round Robin:  pop_front, run 1 unit, if remaining>0 push_back
-      - MLQ:          multiple queues by queue_level, always choose highest queue first
-      - MLFQ:         demote when it uses full quantum; boost occasionally
-    */
-    if (ready.empty()) return std::nullopt;
-
-    Job j = ready.front();
-    ready.pop_front();
-    return j;
-}
-
-static void onJobFeedback(Job& /*job*/, const std::string& /*jsonRecord*/) {
-    /*
-      Optional STUDENT TASK:
-      Use results to change scheduling behaviour (MLFQ-style).
-
-      Examples:
-      - If jsonRecord contains "error": demote job.queue_level
-      - If job.est_cost is high: demote
-      - If job finishes quickly: keep high priority
-    */
-}
-
-// -----------------------------
-// Simulation loop (runs "scheduler")
-// -----------------------------
-static void runIndexer(const fs::path& root, const fs::path& outputJsonl) {
-    std::vector<Job> jobs = buildJobs(root);
-
-    // In this simple model, all jobs are ready immediately.
-    std::deque<Job> ready(jobs.begin(), jobs.end());
-
-    std::ofstream out(outputJsonl);
-    if (!out) {
-        throw std::runtime_error("Could not open output file for writing.");
-    }
-
-    int tick = 0;
-
-    while (!ready.empty()) {
-        ++tick;
-
-        auto next = chooseNextJob(ready, tick);
-        if (!next.has_value()) continue;
-
-        Job job = next.value();
-
-        // "Run" job (index one file)
-        std::string record = scanOnePathJson(job.path);
-
-        // Add a few scheduling fields (simple: append before closing brace)
-        // (Teaching-friendly; students can make proper JSON building later.)
-        if (!record.empty() && record.back() == '}') {
-            record.pop_back();
-            record += ",\"arrival\":" + std::to_string(job.arrival);
-            record += ",\"est_cost\":" + std::to_string(job.est_cost);
-            record += ",\"queue_level\":" + std::to_string(job.queue_level);
-            record += ",\"tick_ran\":" + std::to_string(tick);
-            record += "}";
-        }
-
-        onJobFeedback(job, record);
-
-        out << record << "\n";
-    }
-
-    std::cout << "Done. Wrote: " << outputJsonl << "\n";
-}
+// To be implemented: direct file processing without job queue or scheduling.
 
 int main() {
     try {
