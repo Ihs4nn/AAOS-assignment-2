@@ -212,31 +212,33 @@ int main() {
             std::cout << "Enter size in MB: ";
             std::string size_input;
             std::getline(std::cin, size_input);
-            // Converts MB to bytes for comparison checking
+            // Convert MB to bytes for comparison
             uintmax_t size_threshold = std::stoull(size_input) * 1024 * 1024;
-            // Lists out all files larger than user input size
             std::cout << "Files larger than " << size_input << " MB:\n";
             for (size_t i = 0; i < files.size(); ++i) {
                 if (sizes[i] > size_threshold) {
+                    // Display file path name and size in MB
                     std::cout << files[i] << " (" << sizes[i] / (1024 * 1024) << " MB)\n";
                 }
-        else if (choice == "2") {
+            }
+        } else if (choice == "2") {
             std::cout << "Enter full file path: ";
             std::string file_path;
             std::getline(std::cin, file_path);
-            // Searches for file and displays its hash value
             bool found = false;
             fs::path query_path = file_path;
+            // Searches for the file in the indexed list (csv file)
             for (size_t i = 0; i < files.size(); ++i) {
                 if (files[i] == query_path) {
-                    std::cout << "Checksum  for " << file_path << " is: " << hashes[i] << "\n";
+                    // Prints out the hash value for the file
+                    std::cout << "Checksum for " << file_path << " is: " << hashes[i] << "\n";
                     found = true;
                     break;
                 }
             }
-        }
-        // Quits program when user chooses to exit
-        else {
+        } else {
             break;
         }
+    }
+    return 0;
 }
