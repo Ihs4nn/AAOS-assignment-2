@@ -198,6 +198,17 @@ int main() {
     std::cout << "\nSaved file index information to " << csv_file << " with " << files.size() << " entries\n";
     // End of AI help, rest of code is manually written
 
+    // Printing out benchmark results and peak memory usage
+    std::cout << "\nBenchmark results:\n";
+    std::cout << "Total time taken: " << std::chrono::duration<double>(wall_end - wall_start).count() << " seconds\n";
+    std::cout << "Total CPU time (Processor time used): " << double(cpu_end - cpu_start) / CLOCKS_PER_SEC << " seconds\n";
+    // Get peak memory usage (in MB)
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage) == 0
+    double peak_mem_mb = usage.ru_maxrss / 1024.0;
+    std::cout << "Peak memory usage: " << std::fixed << std::setprecision(2) << peak_mem_mb << " MB\n";
+       
+
     // Creating interactive query menu for users:
     while (true) {
         // Printing out menu options to user
