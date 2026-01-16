@@ -11,7 +11,7 @@
 #include <pwd.h>
 #include <openssl/sha.h>
 
-// Used AI to help convert python functions into C++ functions
+// Used AI and tutor skeleton to help convert python functions into C++ functions below
 namespace fs = std::filesystem;
 
 // Convert filesystem::file_time_type to seconds since epoch (best-effort)
@@ -49,8 +49,18 @@ std::string sha256sum(const fs::path& p) {
         oss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
     return oss.str();
 }
+// End of AI aided help
 
 int main() {
+    // Option to change hashing [Manual work]
+    std::string hash_option;
+    std::count << "Select hash algorithm: "
+              << "\n1. sha-256 (default)"
+              << "\n2. sha-1"
+              << "\n3. md5"
+              << "\nEnter choice (1-3): ";
+    std::getline(std::cin, hash_option);
+    // Start of AI aided help
     // Get input from user for directory to scan
     std::string dir;
     std::cout << "Enter directory to scan: ";
@@ -143,5 +153,6 @@ int main() {
     csv.close();
     std::cout << "\nSaved file index information to " << csv_file << " with " << files.size() << " entries\n";
     return 0;
-}
-// End of AI help, rest of code is manually written
+    // End of AI help, rest of code is manually written
+    
+    // Creating interactive query menu for users:
