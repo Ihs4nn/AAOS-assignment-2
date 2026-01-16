@@ -9,8 +9,15 @@
 #include <iomanip>
 #include <sys/types.h>
 #include <pwd.h>
+#include <thread>
+#include <vector>
+#include <functional>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
 #include <openssl/sha.h>
 #include <openssl/md5.h>
+
 
 // Used AI and tutor skeleton to help convert python functions into C++ functions below
 namespace fs = std::filesystem;
@@ -82,6 +89,19 @@ std::string hash_file(const fs::path& p, const std::string& algorithm) {
     }
     return oss.str();
 }
+// Threaded function 
+template <typename Func, typename OutVec>
+void threaded_map(const std::vector<fs::path>& files, OutVec& out, Func func, int num_threads = 3) {
+    auto worker = [&](int thread_id) {
+        for (size_t i = thread_id; i < files.size(); i += num_threads) {
+            out[i] = func(files[i]);
+        }
+    };
+    std::vector<std::thread> threads;
+    for (int i = 0; i < num_threads; ++i)
+        threads.emplace_back(worker, i);
+    for (auto& t : threads) t.join();
+}
 // End of AI aided help
 
 int main() {
@@ -119,7 +139,7 @@ int main() {
     auto wall_start = std::chrono::steady_clock::now();
     auto cpu_start = std::clock();
 
-    // Scan for files
+    // Scan for files names
     std::cout << "\nScanning " << root << " for files... using " << hash_algorithm << "\n";
     for (const auto& entry : fs::recursive_directory_iterator(root)) {
         if (fs::is_regular_file(entry.path())) {
@@ -128,66 +148,61 @@ int main() {
     }
     auto wall_end = std::chrono::steady_clock::now();
     auto cpu_end = std::clock();
-    std::cout << "Found " << files.size() << " files in "
+    std::cout << "\nFound " << files.size() << " file names in "
               << std::chrono::duration<double>(wall_end - wall_start).count() << " real seconds and "
               << double(cpu_end - cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
 
-    // Getting file sizes
-    wall_start = std::chrono::steady_clock::now();
-    cpu_start = std::clock();
+    // Getting file sizes (threaded)
+    auto size_wall_start = std::chrono::steady_clock::now();
+    auto size_cpu_start = std::clock();
     std::vector<uintmax_t> sizes(files.size());
-    for (size_t i = 0; i < files.size(); ++i) {
-        try {
-            sizes[i] = fs::file_size(files[i]);
-        } catch (...) { sizes[i] = 0; }
-    }
-    wall_end = std::chrono::steady_clock::now();
-    cpu_end = std::clock();
-    std::cout << "Got sizes for " << files.size() << " files in "
-              << std::chrono::duration<double>(wall_end - wall_start).count() << " real seconds and "
-              << double(cpu_end - cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
+    threaded_map(files, sizes, [](const fs::path& f) {
+        try { return fs::file_size(f); } catch (...) { return uintmax_t(0); }
+    });
+    auto size_wall_end = std::chrono::steady_clock::now();
+    auto size_cpu_end = std::clock();
+    std::cout << "Found sizes for " << files.size() << " files in "
+              << std::chrono::duration<double>(size_wall_end - size_wall_start).count() << " real seconds and "
+              << double(size_cpu_end - size_cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
 
-    // Getting file mtimes
-    wall_start = std::chrono::steady_clock::now();
-    cpu_start = std::clock();
+    // Getting file mtimes (threaded)
+    auto mtime_wall_start = std::chrono::steady_clock::now();
+    auto mtime_cpu_start = std::clock();
     std::vector<long long> mtimes(files.size());
-    for (size_t i = 0; i < files.size(); ++i) {
-        try {
-            mtimes[i] = fileTimeToEpochSeconds(fs::last_write_time(files[i]));
-        } catch (...) { mtimes[i] = 0; }
-    }
-    wall_end = std::chrono::steady_clock::now();
-    cpu_end = std::clock();
-    std::cout << "Got mtimes for " << files.size() << " files in "
-              << std::chrono::duration<double>(wall_end - wall_start).count() << " real seconds and "
-              << double(cpu_end - cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
+    threaded_map(files, mtimes, [](const fs::path& f) {
+        try { return fileTimeToEpochSeconds(fs::last_write_time(f)); } catch (...) { return 0LL; }
+    });
+    auto mtime_wall_end = std::chrono::steady_clock::now();
+    auto mtime_cpu_end = std::clock();
+    std::cout << "Found mtimes for " << files.size() << " files in "
+              << std::chrono::duration<double>(mtime_wall_end - mtime_wall_start).count() << " real seconds and "
+              << double(mtime_cpu_end - mtime_cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
 
-    // Getting file owners from files
-    wall_start = std::chrono::steady_clock::now();
-    cpu_start = std::clock();
+    // Getting file owners (threaded)
+    auto owner_wall_start = std::chrono::steady_clock::now();
+    auto owner_cpu_start = std::clock();
     std::vector<std::string> owners(files.size());
-    for (size_t i = 0; i < files.size(); ++i) {
-        owners[i] = getOwner(files[i]);
-    }
-    wall_end = std::chrono::steady_clock::now();
-    cpu_end = std::clock();
-    std::cout << "Got owners for " << files.size() << " files in "
-              << std::chrono::duration<double>(wall_end - wall_start).count() << " real seconds and "
-              << double(cpu_end - cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
+    threaded_map(files, owners, [](const fs::path& f) {
+        return getOwner(f);
+    });
+    auto owner_wall_end = std::chrono::steady_clock::now();
+    auto owner_cpu_end = std::clock();
+    std::cout << "Found owners for " << files.size() << " files in "
+              << std::chrono::duration<double>(owner_wall_end - owner_wall_start).count() << " real seconds and "
+              << double(owner_cpu_end - owner_cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
 
-    // Getting file hashes from the files
-    wall_start = std::chrono::steady_clock::now();
-    cpu_start = std::clock();
+    // Getting file hashes (threaded)
+    auto hash_wall_start = std::chrono::steady_clock::now();
+    auto hash_cpu_start = std::clock();
     std::vector<std::string> hashes(files.size());
-    for (size_t i = 0; i < files.size(); ++i) {
-        hashes[i] = hash_file(files[i], hash_algorithm);
-    }
-    wall_end = std::chrono::steady_clock::now();
-    cpu_end = std::clock();
-    std::cout << "Calculated hashes for " << files.size() << " files in "
-              << std::chrono::duration<double>(wall_end - wall_start).count() << " real seconds and "
-              << double(cpu_end - cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
-
+    threaded_map(files, hashes, [&](const fs::path& f) {
+        return hash_file(f, hash_algorithm);
+    });
+    auto hash_wall_end = std::chrono::steady_clock::now();
+    auto hash_cpu_end = std::clock();
+    std::cout << "Found hashes for " << files.size() << " files in "
+              << std::chrono::duration<double>(hash_wall_end - hash_wall_start).count() << " real seconds and "
+              << double(hash_cpu_end - hash_cpu_start) / CLOCKS_PER_SEC << " CPU seconds\n";
     // Write to CSV
     std::ofstream csv(csv_file);
     csv << "filename,size,mtime,owner,hash\n";
@@ -204,11 +219,10 @@ int main() {
     std::cout << "Total CPU time (Processor time used): " << double(cpu_end - cpu_start) / CLOCKS_PER_SEC << " seconds\n";
     // Get peak memory usage (in MB)
     struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage) == 0
-    double peak_mem_mb = usage.ru_maxrss / 1024.0;
+    getrusage(RUSAGE_SELF, &usage);
+    double peak_mem_mb = usage.ru_maxrss / (1024.0 * 1024.0);
     std::cout << "Peak memory usage: " << std::fixed << std::setprecision(2) << peak_mem_mb << " MB\n";
        
-
     // Creating interactive query menu for users:
     while (true) {
         // Printing out menu options to user
